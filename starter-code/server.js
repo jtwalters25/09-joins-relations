@@ -2,6 +2,7 @@
 
 const pg = require('pg');
 const express = require('express');
+const bluebird = require('bluebird');
 const bodyParser = require('body-parser');
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -29,9 +30,9 @@ app.get('/articles/all', function(request, response) {
     if (err) console.error(err);
     client.query(
       `SELECT *
-      FROM articles
-      INNER JOIN authors
-      ON articles.author_id = authors.author_id`, // Done: Write a SQL query which inner joins the data from articles and authors for all records
+      FROM authors
+      INNER JOIN articles
+      ON authors.author_id = articles.author_id`, // Done: Write a SQL query which inner joins the data from articles and authors for all records
       function(err, result) {
         if (err) console.error(err);
         response.send(result);
@@ -45,14 +46,14 @@ app.post('/articles/insert', function(request, response) {
   let client = new pg.Client(conString)
 
   client.query(
-    `INSERT INTO articles (author, "authorUrl")
-    VALUES ($1, $2 )
-    ON CONFLICT DO NOTHING;`, // DONE: Write a SQL query to insert a new author, ON CONFLICT DO NOTHING
+    `INSERT INTO authors(author, "authorUrl") VALUES($1, $2) WHERE NOT EXIST(SELECT author FROM authors WHERE author=$1),
+    ON CONFLICT DO NOTHING`,
+     // DONE: Write a SQL query to insert a new author, ON CONFLICT DO NOTHING
     [request.body.author,
       request.body.authorUrl], // DONE: Add the author and "authorUrl" as data for the SQL query
       function(err) {
         if (err) console.error(err)
-        queryTwo(result.rows[0].author) // This is our second query, to be executed when this first query is complete.
+        queryTwo() // This is our second query, to be executed when this first query is complete.
       }
     )
 
@@ -74,13 +75,13 @@ app.post('/articles/insert', function(request, response) {
         `INSERT INTO articles (author_id, title, category, "publishedOn", body)
         VALUES($1, $2, $3, $4, $5);`,
         // DONE: Write a SQL query to insert the new article using the author_id from our previous query
-      [
+      [ request.author_id,
         request.body.title,
         request.body.category,
         request.body.publishedOn,
         request.body
       ]
-  // TODO: Add the data from our new article, including the author_id, as data for the SQL query.
+  // done: Add the data from our new article, including the author_id, as data for the SQL query.
       );
   }
 
@@ -92,8 +93,8 @@ app.put('/articles/update', function(request, response) {
   let client = new pg.Client(conString);
 
   client.query(
-      `SELECT author_id`, // TODO: Write a SQL query to retrieve the author_id from the authors table for the new article
-      [], // TODO: Add the author name as data for the SQL query
+      `SELECT author_id FROM authors WHERE author=$1`, // done: Write a SQL query to retrieve the author_id from the authors table for the new article
+      [request.body.author], // done: Add the author name as data for the SQL query
       function(err, result) {
         if (err) console.error(err)
         queryTwo(result.rows[0].author_id)
@@ -105,16 +106,16 @@ app.put('/articles/update', function(request, response) {
     client.query(
         `UPDATE authors
         SET author=$1, "authorUrl"=$2
-        WHERE author_id = $3`, // TODO: Write a SQL query to update an existing author record
-        [request.author, request.authorUrl] // TODO: Add the values for this table as data for the SQL query
+        WHERE author_id = $3`, // done: Write a SQL query to update an existing author record
+        [request.author, request.authorUrl, author_id] // done: Add the values for this table as data for the SQL query
       )
   }
 
   function queryThree(author_id) {
     client.query(
         `UPDATE articles
-         SET author_id, title, category, "publishedOn", body`, // TODO: Write a SQL query to update an existing article record
-        [] // TODO: Add the values for this table as data for the SQL query
+         SET author_id, title, category, "publishedOn", body`, // done: Write a SQL query to update an existing article record
+        [request.body.title, request.body.category, request.body.publishedOn, request.body.body, request.body.id] // done: Add the values for this table as data for the SQL query
       );
   }
 
